@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { TeacherRecord, SupervisionStatus, AppSettings } from '../types';
 
@@ -38,16 +37,16 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
   const [tempat1, setTempat1] = useState('Ruang Kepala Sekolah');
   const [tempat2, setTempat2] = useState('Ruang Guru');
 
-  // Initialize state from settings
+  // Initialize/Sync state from settings whenever semester changes
   useEffect(() => {
     const range = activeSemester === 'Ganjil' ? settings.rangeAdmGuruGanjil : settings.rangeAdmGuruGenap;
     if (range) {
       setStartDate(range.from);
       setEndDate(range.to);
     }
-    // Default Sup 1 is Principal if empty
+    // Update Supervisor 1 default if needed
     if (!sup1) setSup1(settings.namaKepalaSekolah);
-  }, [settings, activeSemester]);
+  }, [activeSemester, settings.rangeAdmGuruGanjil, settings.rangeAdmGuruGenap, settings.namaKepalaSekolah]);
 
   const teacherList = useMemo(() => {
     const names = Array.from(new Set(records.map(r => r.namaGuru))).sort();
@@ -91,7 +90,6 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
     let currentDate = new Date(start);
     
     // Get master list of teachers (unique by name) to handle empty semesters
-    // Fix: Explicitly type masterTeachers as TeacherRecord[] to avoid 'unknown' type inference errors
     const masterTeachers: TeacherRecord[] = Array.from(new Map<string, TeacherRecord>(records.map(r => [r.namaGuru, r])).values());
     const otherSemesterRecords = records.filter(r => r.semester !== activeSemester);
     
@@ -105,15 +103,27 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
       const dayNameStr = dayNames[currentDate.getDay()];
       
       // Determine Supervisor and Place
+      // Note: assignments map by ID, we need to map by Name if IDs change, but for now simple ID check on template
+      // Better strategy: Map assignment by Name since we are regenerating IDs
+      const teacherName = tpl.namaGuru;
+      // We need to check if the teacher was assigned in the UI. 
+      // Since UI uses filteredRecords (current semester), we need to ensure we track assignments correctly.
+      // But for bulk generation, we mostly round robin or defaults.
+      
       let supervisor = assignedToSup1.includes(tpl.id) ? sup1 : (assignedToSup2.includes(tpl.id) ? sup2 : sup1);
       let loc = assignedToSup1.includes(tpl.id) ? tempat1 : (assignedToSup2.includes(tpl.id) ? tempat2 : tempat1);
       
-      // For Genap, we use a new ID if it's a clone
-      const newId = activeSemester === 'Genap' ? (tpl.no + 1000) : tpl.id;
+      // Correct ID Logic:
+      // Ganjil IDs = tpl.no
+      // Genap IDs = tpl.no + 1000
+      // This ensures we don't overwrite Ganjil records when generating Genap, and vice versa.
+      const baseNo = tpl.no || (index + 1);
+      const newId = activeSemester === 'Genap' ? (baseNo + 1000) : baseNo;
 
       const res: TeacherRecord = { 
         ...tpl, 
         id: newId,
+        no: baseNo,
         semester: activeSemester,
         tanggalAdm: currentDate.toISOString().split('T')[0], 
         hari: dayNameStr, 
@@ -129,7 +139,7 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
     });
     
     onUpdateRecords([...otherSemesterRecords, ...updated]);
-    alert(`Jadwal Administrasi Guru semester ${activeSemester} berhasil disusun ulang!`);
+    alert(`Jadwal Administrasi Guru semester ${activeSemester} berhasil disusun ulang sesuai rentang tanggal!`);
   };
 
   const exportPDF = () => {
@@ -169,11 +179,11 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
         {/* Configuration Inputs */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase">Tanggal Mulai</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase">Tanggal Mulai ({activeSemester})</label>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500" />
            </div>
            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase">Tanggal Selesai</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase">Tanggal Selesai ({activeSemester})</label>
               <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500" />
            </div>
            <div className="space-y-2">

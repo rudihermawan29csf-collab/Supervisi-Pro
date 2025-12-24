@@ -25,7 +25,7 @@ const formatIndonesianDate = (dateStr?: string) => {
   if (!dateStr) return '..............................';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return dateStr;
-  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 };
 
 interface Props {
@@ -35,6 +35,11 @@ interface Props {
 const ObservationResultsView: React.FC<Props> = ({ settings, setSettings, records, instrumentResults, onSave }) => {
   const [selectedTeacherId, setSelectedTeacherId] = useState<number | ''>('');
   const [scores, setScores] = useState<Record<number, number>>({});
+
+  // Reset selected teacher when semester changes
+  useEffect(() => {
+    setSelectedTeacherId('');
+  }, [settings.semester]);
 
   const selectedTeacher = useMemo(() => records.find(t => t.id === selectedTeacherId), [selectedTeacherId, records]);
 
@@ -83,7 +88,7 @@ const ObservationResultsView: React.FC<Props> = ({ settings, setSettings, record
         <div className="flex items-center gap-3">
           <select value={selectedTeacherId} onChange={(e) => setSelectedTeacherId(Number(e.target.value))} className="px-4 py-2 border rounded-xl font-bold text-blue-600 outline-none uppercase text-xs">
             <option value="">-- PILIH GURU --</option>
-            {records.map(t => <option key={t.id} value={t.id}>{t.namaGuru}</option>)}
+            {records.filter(t => t.semester === settings.semester).map(t => <option key={t.id} value={t.id}>{t.namaGuru}</option>)}
           </select>
         </div>
         <div className="flex gap-2">
@@ -104,6 +109,7 @@ const ObservationResultsView: React.FC<Props> = ({ settings, setSettings, record
            <div className="flex items-start"><span className="w-40 uppercase">Nama Guru</span><span className="mr-4">:</span><span className="uppercase text-blue-800">{selectedTeacher?.namaGuru || '...................'}</span></div>
            <div className="flex items-start"><span className="w-40 uppercase">Mata Pelajaran</span><span className="mr-4">:</span><span className="italic">{selectedTeacher?.mataPelajaran || '...................'}</span></div>
            <div className="flex items-start"><span className="w-40 uppercase">Pewawancara</span><span className="mr-4">:</span><span>{supervisorName}</span></div>
+           <div className="flex items-start"><span className="w-40 uppercase">Hari / Tanggal</span><span className="mr-4">:</span><span className="text-blue-800 uppercase">{formatIndonesianDate(selectedTeacher?.tanggalPemb)}</span></div>
         </div>
 
         <table className="w-full border-collapse border-2 border-slate-900 text-[11px]">

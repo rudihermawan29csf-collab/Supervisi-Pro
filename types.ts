@@ -20,6 +20,8 @@ export interface TeacherRecord {
   nip?: string;
   kode?: string; // Teacher Code (e.g., MAT-PU)
   pangkatGolongan?: string;
+  noHP?: string;        // Added field
+  sertifikasi?: string; // Added field
   nilaiAdm?: number;
   nilaiATP?: number;
   nilaiModul?: number;

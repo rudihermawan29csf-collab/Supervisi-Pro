@@ -29,7 +29,7 @@ import LearningAnalysisView from './components/LearningAnalysisView';
 import SupervisionLogView from './components/SupervisionLogView';
 import SupervisionRecapView from './components/SupervisionRecapView';
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('supervisi_auth') === 'true');
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -101,7 +101,7 @@ const App: React.FC = () => {
       setInstrumentResults(cloudData.instrumentResults || {});
       setUploadedSchedules(cloudData.uploadedSchedules || {});
       setLastSyncStatus('success');
-      if (isManual) alert("Berhasil memuat data terbaru dari Cloud.");
+      if (isManual) alert("Berhasil memuat data terbaru dari Firebase Cloud.");
     } else if (!isManual) {
       loadDefaultState();
     }
@@ -135,10 +135,10 @@ const App: React.FC = () => {
     const success = await syncDataToCloud(fullData);
     if (success) {
       setLastSyncStatus('success');
-      alert("Seluruh data berhasil diamankan ke Cloud Database.");
+      alert("Seluruh data berhasil diamankan ke Firebase Cloud.");
     } else {
       setLastSyncStatus('error');
-      alert("Gagal menyimpan ke Cloud. Cek koneksi Anda.");
+      alert("Gagal menyimpan ke Firebase. Cek koneksi Anda.");
     }
     setIsSyncing(false);
   };
@@ -238,7 +238,7 @@ const App: React.FC = () => {
            <img src="https://i.ibb.co.com/c9Y905N/Logo-SMPN-3-PACET.png" alt="Logo" className="w-10 h-10 object-contain shadow-lg rounded-full bg-white p-0.5" />
            <div className="flex-1 min-w-0">
              <h1 className="text-[11px] font-black text-white uppercase truncate">{settings.namaSekolah || 'Supervisi Pro'}</h1>
-             <p className="text-[9px] text-blue-400 font-bold tracking-widest uppercase">Cloud Database Active</p>
+             <p className="text-[9px] text-blue-400 font-bold tracking-widest uppercase">Firebase Connected</p>
            </div>
            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-1 text-slate-500 hover:text-white"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeWidth="2"/></svg></button>
         </div>
@@ -250,11 +250,11 @@ const App: React.FC = () => {
           <div className="pt-2 pb-1 border-t border-slate-800/50 mt-4 space-y-1">
              <button onClick={() => handleManualSave()} disabled={isSyncing} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600/10 text-emerald-400 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" strokeWidth="3" /></svg>
-                {isSyncing ? 'Menyimpan...' : 'Simpan ke Cloud'}
+                {isSyncing ? 'Menyimpan...' : 'Simpan ke Firebase'}
              </button>
              <button onClick={() => loadDataFromCloud(true)} disabled={isSyncing} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600/10 text-blue-400 rounded-xl text-[10px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all">
                 <svg className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth="3" /></svg>
-                Muat dari Cloud
+                Muat dari Firebase
              </button>
           </div>
 
@@ -350,7 +350,7 @@ const App: React.FC = () => {
                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-tighter transition-all ${lastSyncStatus === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : lastSyncStatus === 'error' ? 'bg-red-50 border-red-200 text-red-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
              >
                 <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-blue-500 animate-pulse' : lastSyncStatus === 'success' ? 'bg-emerald-500' : lastSyncStatus === 'error' ? 'bg-red-500' : 'bg-slate-400'}`}></div>
-                {isSyncing ? 'Simpan...' : lastSyncStatus === 'success' ? 'Database OK' : lastSyncStatus === 'error' ? 'Sync Error' : 'Offline'}
+                {isSyncing ? 'Simpan...' : lastSyncStatus === 'success' ? 'Firebase OK' : lastSyncStatus === 'error' ? 'Sync Error' : 'Offline'}
              </button>
              <div className="text-right hidden md:block">
                 <span className="block text-[10px] font-black text-slate-800 uppercase">TP {settings.tahunPelajaran}</span>
@@ -363,7 +363,7 @@ const App: React.FC = () => {
            {isSyncing && Object.keys(settings).length === 0 ? (
              <div className="flex flex-col items-center justify-center h-full space-y-4 animate-fadeIn">
                 <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sinkronisasi Data Cloud...</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sinkronisasi Data Firebase...</p>
              </div>
            ) : (
             <div className="max-w-6xl mx-auto">
@@ -420,5 +420,3 @@ const App: React.FC = () => {
     </div>
   );
 };
-
-export default App;

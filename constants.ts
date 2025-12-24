@@ -3,23 +3,25 @@ import { TeacherRecord, SupervisionStatus } from './types';
 
 export const CLASS_LIST = ['VII A', 'VII B', 'VII C', 'VIII A', 'VIII B', 'VIII C', 'IX A', 'IX B', 'IX C'];
 
+// Data Guru Master (Dibersihkan dari duplikasi)
+// Updated based on user request (16 Teachers)
 export const SCHEDULE_TEACHERS = [
-  { nama: 'Dra. Sri Hayati', kode: 'BIN-SH', nip: '19670628 200801 2 006', mapel: 'Bahasa Indonesia' },
-  { nama: 'Bakhtiar Rifai, S.E', kode: 'IPS-BR', nip: '19800304 200801 1 009', mapel: 'IPS' },
-  { nama: 'Akhmad Hariadi, S.Pd', kode: 'BIG-AH', nip: '19751108 200901 1 001', mapel: 'Bahasa Inggris & Informatika' },
-  { nama: 'Moch. Husain Rifai Hamzah, S.Pd.', kode: 'PJOK-MH', nip: '19920316 202012 1 011', mapel: 'PJOK' },
-  { nama: 'Rudi Hermawan, S.Pd.I', kode: 'PAI-RH', nip: '19891029 202012 1 003', mapel: 'Pendidikan Agama Islam' },
-  { nama: 'Okha Devi Anggraini, S.Pd.', kode: 'BK-OD', nip: '19941002 202012 2 008', mapel: 'BK' },
-  { nama: 'Eka Hariyati, S.Pd.', kode: 'PKN-EH', nip: '19731129 202421 2 003', mapel: 'Pendidikan Pancasila' },
-  { nama: 'Retno Nawangwulan, S.Pd.', kode: 'BIG-RN', nip: '19850703 202521 2 006', mapel: 'Bahasa Inggris & Informatika' },
-  { nama: 'Mikoe Wahyudi Putra, S.T., S.Pd.', kode: 'BK-MW', nip: '19820222 202421 1 004', mapel: 'BK' },
-  { nama: 'Purnadi, S.Pd.', kode: 'MAT-PU', nip: '19680705 202421 1 001', mapel: 'Matematika' },
-  { nama: 'Israfin Maria Ulfa, S.Pd', kode: 'IPS-MU', nip: '19850131 202521 2 004', mapel: 'IPS & Bahasa Indonesia' },
-  { nama: 'Syadam Budi Satrianto, S.Pd', kode: 'BAJA-SB', nip: '-', mapel: 'Bahasa Jawa' },
-  { nama: 'Rebby Dwi Prataopu, S.Si', kode: 'IPA-RB', nip: '-', mapel: 'IPA' },
-  { nama: 'Fakhita Madury, S.Sn.', kode: 'SENI-FA', nip: '-', mapel: 'Seni & Informatika' },
-  { nama: 'Mukhamad Yunus, S.Pd', kode: 'IPA-MY', nip: '-', mapel: 'IPA & Matematika' },
-  { nama: 'Fahmi Wahyuni, S.Pd', kode: 'BIN-FW', nip: '-', mapel: 'Bahasa Indonesia' }
+  { nama: 'Dra. Sri Hayati', kode: 'BIN-SH', nip: '19670628 200801 2 006', pangkat: 'IV/a', mapel: 'Bahasa Indonesia', hp: '-', sertifikasi: 'Sudah' },
+  { nama: 'Bakhtiar Rifai, S.E', kode: 'IPS-BR', nip: '19800304 200801 1 009', pangkat: 'III/d', mapel: 'IPS', hp: '-', sertifikasi: 'Sudah' },
+  { nama: 'Akhmad Hariadi, S.Pd', kode: 'BIG-AH', nip: '19751108 200901 1 001', pangkat: 'III/c', mapel: 'Bahasa Inggris', hp: '-', sertifikasi: 'Sudah' },
+  { nama: 'Moch. Husain Rifai Hamzah, S.Pd.', kode: 'PJOK-MH', nip: '19920316 202012 1 011', pangkat: 'III/b', mapel: 'PJOK', hp: '-', sertifikasi: 'Belum' },
+  { nama: 'Rudi Hermawan, S.Pd.I', kode: 'PAI-RH', nip: '19891029 202012 1 003', pangkat: 'III/b', mapel: 'Pendidikan Agama Islam', hp: '-', sertifikasi: 'Belum' },
+  { nama: 'Okha Devi Anggraini, S.Pd.', kode: 'BK-OD', nip: '19941002 202012 2 008', pangkat: 'III/b', mapel: 'BK', hp: '-', sertifikasi: 'Belum' },
+  { nama: 'Eka Hariyati, S.Pd.', kode: 'PKN-EH', nip: '19731129 202421 2 003', pangkat: 'IX', mapel: 'Pendidikan Pancasila', hp: '-', sertifikasi: 'Sudah' },
+  { nama: 'Retno Nawangwulan, S.Pd.', kode: 'BIG-RN', nip: '19850703 202521 2 006', pangkat: 'IX', mapel: 'Bahasa Inggris', hp: '-', sertifikasi: 'Belum' },
+  { nama: 'Mikoe Wahyudi Putra, S.T., S.Pd.', kode: 'BK-MW', nip: '19820222 202421 1 004', pangkat: 'IX', mapel: 'BK', hp: '-', sertifikasi: 'Belum' },
+  { nama: 'Purnadi, S.Pd.', kode: 'MAT-PU', nip: '19680705 202421 1 001', pangkat: 'IX', mapel: 'Matematika', hp: '-', sertifikasi: 'Sudah' },
+  { nama: 'Israfin Maria Ulfa, S.Pd', kode: 'IPS-MU', nip: '19850131 202521 2 004', pangkat: 'IX', mapel: 'IPS', hp: '-', sertifikasi: 'Belum' },
+  { nama: 'Syadam Budi Satrianto, S.Pd', kode: 'BAJA-SB', nip: '-', pangkat: '-', mapel: 'Bahasa Jawa', hp: '-', sertifikasi: 'Belum' },
+  { nama: 'Rebby Dwi Prataopu, S.Si', kode: 'IPA-RB', nip: '-', pangkat: '-', mapel: 'IPA', hp: '-', sertifikasi: 'Belum' },
+  { nama: 'Fakhita Madury, S.Sn.', kode: 'SENI-FA', nip: '-', pangkat: '-', mapel: 'Seni', hp: '-', sertifikasi: 'Belum' },
+  { nama: 'Mukhamad Yunus, S.Pd', kode: 'IPA-MY', nip: '-', pangkat: '-', mapel: 'IPA', hp: '-', sertifikasi: 'Belum' },
+  { nama: 'Fahmi Wahyuni, S.Pd', kode: 'BIN-FW', nip: '-', pangkat: '-', mapel: 'Bahasa Indonesia', hp: '-', sertifikasi: 'Belum' }
 ];
 
 export const INITIAL_TEACHERS: TeacherRecord[] = SCHEDULE_TEACHERS.map((t, idx) => ({
@@ -29,7 +31,9 @@ export const INITIAL_TEACHERS: TeacherRecord[] = SCHEDULE_TEACHERS.map((t, idx) 
   nip: t.nip,
   kode: t.kode,
   mataPelajaran: t.mapel,
-  pangkatGolongan: t.nip !== '-' ? 'Pembina, IV/a' : '-',
+  pangkatGolongan: t.pangkat || '-',
+  noHP: t.hp,
+  sertifikasi: t.sertifikasi,
   hari: '',
   tanggal: '',
   kelas: '',

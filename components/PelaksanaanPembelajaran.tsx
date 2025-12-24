@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppSettings, TeacherRecord, InstrumentResult } from '../types';
+import { FULL_SCHEDULE, SCHEDULE_TEACHERS } from '../constants';
 
 interface SubItem { id: number; label: string; }
 interface AspectGroup { no: string; title: string; items: SubItem[]; }
@@ -10,7 +11,7 @@ const formatIndonesianDate = (dateStr?: string) => {
   if (!dateStr) return '..............................';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return dateStr;
-  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 };
 
 const getAutoFeedback = (percentage: number) => {
@@ -56,8 +57,39 @@ const PelaksanaanPembelajaran: React.FC<Props> = ({ settings, setSettings, recor
   const [scores, setScores] = useState<Record<number, number>>({});
   const [catatan, setCatatan] = useState('');
   const [tindakLanjut, setTindakLanjut] = useState('');
+  const [materi, setMateri] = useState('');
+  const [jtm, setJTM] = useState('');
+
+  // Reset selected teacher when semester changes
+  useEffect(() => {
+    setSelectedTeacherId('');
+  }, [settings.semester]);
 
   const selectedTeacher = useMemo(() => records.find(t => t.id === selectedTeacherId), [selectedTeacherId, records]);
+
+  // Calculate JTM automatically
+  useEffect(() => {
+    if (selectedTeacher) {
+      const teacherData = SCHEDULE_TEACHERS.find(t => t.nama === selectedTeacher.namaGuru);
+      const teacherCode = teacherData?.kode;
+      
+      if (teacherCode) {
+        let count = 0;
+        FULL_SCHEDULE.forEach(day => {
+          day.rows.forEach((row: any) => {
+            if (row.classes) {
+              Object.values(row.classes).forEach(code => {
+                if (code === teacherCode) count++;
+              });
+            }
+          });
+        });
+        setJTM(count > 0 ? count.toString() : '');
+      } else {
+        setJTM('');
+      }
+    }
+  }, [selectedTeacher]);
 
   const stats = useMemo(() => {
     const allItems = SECTIONS.flatMap(section => section.groups.flatMap(group => group.items));
@@ -85,8 +117,9 @@ const PelaksanaanPembelajaran: React.FC<Props> = ({ settings, setSettings, recor
         setScores(saved.scores as any || {}); 
         if (saved.catatan) setCatatan(saved.catatan);
         if (saved.tindakLanjut) setTindakLanjut(saved.tindakLanjut);
+        if (saved.materi) setMateri(saved.materi);
       } else {
-        setScores({}); setCatatan(''); setTindakLanjut('');
+        setScores({}); setCatatan(''); setTindakLanjut(''); setMateri('');
       }
     }
   }, [selectedTeacherId, settings.semester, instrumentResults]);
@@ -119,8 +152,15 @@ const PelaksanaanPembelajaran: React.FC<Props> = ({ settings, setSettings, recor
         <div className="flex items-center gap-3">
           <select value={selectedTeacherId} onChange={(e) => setSelectedTeacherId(Number(e.target.value))} className="px-4 py-2 border rounded-xl font-bold text-blue-600 outline-none uppercase text-xs">
             <option value="">-- PILIH GURU --</option>
-            {records.map(t => <option key={t.id} value={t.id}>{t.namaGuru}</option>)}
+            {records.filter(t => t.semester === settings.semester).map(t => <option key={t.id} value={t.id}>{t.namaGuru}</option>)}
           </select>
+          <input 
+            type="text" 
+            value={materi} 
+            onChange={(e) => setMateri(e.target.value)} 
+            className="px-4 py-2 border rounded-xl outline-none text-xs w-64"
+            placeholder="Input Materi/Topik/Tema..." 
+          />
           <div className="flex bg-slate-200 p-1 rounded-xl shadow-inner">
              <button onClick={() => setSettings({...settings, semester: 'Ganjil'})} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase ${settings.semester === 'Ganjil' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Ganjil</button>
              <button onClick={() => setSettings({...settings, semester: 'Genap'})} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase ${settings.semester === 'Genap' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Genap</button>
@@ -129,7 +169,7 @@ const PelaksanaanPembelajaran: React.FC<Props> = ({ settings, setSettings, recor
         <div className="flex gap-2">
           <button onClick={exportPDF} className="px-4 py-2 bg-red-600 text-white rounded-xl font-black text-[10px] uppercase shadow-lg">PDF</button>
           <button onClick={exportWord} className="px-4 py-2 bg-indigo-800 text-white rounded-xl font-black text-[10px] uppercase shadow-lg">Word</button>
-          <button onClick={() => onSave(selectedTeacherId as number, 'pembelajaran', settings.semester, { scores, remarks: {}, catatan, tindakLanjut })} disabled={!selectedTeacherId} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase shadow-lg">Simpan</button>
+          <button onClick={() => onSave(selectedTeacherId as number, 'pembelajaran', settings.semester, { scores, remarks: {}, catatan, tindakLanjut, materi })} disabled={!selectedTeacherId} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase shadow-lg">Simpan</button>
         </div>
       </div>
 
@@ -143,7 +183,11 @@ const PelaksanaanPembelajaran: React.FC<Props> = ({ settings, setSettings, recor
         <div className="grid grid-cols-1 gap-y-1 text-sm font-bold mb-8">
            <div className="flex items-start"><span className="w-40 uppercase">Nama Guru</span><span className="mr-4">:</span><span className="uppercase text-blue-800">{selectedTeacher?.namaGuru || '...................'}</span></div>
            <div className="flex items-start"><span className="w-40 uppercase">Mata Pelajaran</span><span className="mr-4">:</span><span className="italic">{selectedTeacher?.mataPelajaran || '...................'}</span></div>
-           <div className="flex items-start"><span className="w-40 uppercase">Hari / Tanggal</span><span className="mr-4">:</span><span>{formatIndonesianDate(selectedTeacher?.tanggalPemb)}</span></div>
+           <div className="flex items-start">
+               <span className="w-40 uppercase">Jml Jam Tatap Muka</span><span className="mr-4">:</span><span>{jtm || '...'} Jam</span>
+           </div>
+           <div className="flex items-start"><span className="w-40 uppercase">Materi/Topik/Tema</span><span className="mr-4">:</span><span>{materi || '...................'}</span></div>
+           <div className="flex items-start"><span className="w-40 uppercase">Hari / Tanggal</span><span className="mr-4">:</span><span className="text-blue-800 uppercase">{formatIndonesianDate(selectedTeacher?.tanggalPemb)}</span></div>
         </div>
 
         <table className="w-full border-collapse border-2 border-slate-900 text-[10px]">

@@ -1,15 +1,16 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppSettings, TeacherRecord, InstrumentResult } from '../types';
 
 interface ModulItem { id: number; label: string; subs?: string[]; }
 interface ModulGroup { category: string; title: string; legend?: { 0: string; 1: string; 2: string }; items: ModulItem[]; }
 
-const formatIndonesianDate = (dateStr?: string) => {
+const formatIndonesianDate = (dateStr?: string, withDay: boolean = false) => {
   if (!dateStr) return '..............................';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return dateStr;
-  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
+  if (withDay) options.weekday = 'long';
+  return date.toLocaleDateString('id-ID', options);
 };
 
 const getAutoFeedback = (percentage: number) => {
@@ -41,6 +42,11 @@ const TelaahModulAjar: React.FC<Props> = ({ settings, setSettings, records, inst
   const [remarks, setRemarks] = useState<Record<number, string>>({});
   const [catatan, setCatatan] = useState('');
   const [tindakLanjut, setTindakLanjut] = useState('');
+
+  // Reset selected teacher when semester changes
+  useEffect(() => {
+    setSelectedTeacherId('');
+  }, [settings.semester]);
 
   const selectedTeacher = useMemo(() => records.find(t => t.id === selectedTeacherId), [selectedTeacherId, records]);
 
@@ -110,7 +116,7 @@ const TelaahModulAjar: React.FC<Props> = ({ settings, setSettings, records, inst
         <div className="flex items-center gap-3">
           <select value={selectedTeacherId} onChange={(e) => setSelectedTeacherId(Number(e.target.value))} className="px-4 py-2 border rounded-xl font-bold text-blue-600 outline-none">
             <option value="">-- Pilih Guru --</option>
-            {records.map(t => <option key={t.id} value={t.id}>{t.namaGuru}</option>)}
+            {records.filter(t => t.semester === settings.semester).map(t => <option key={t.id} value={t.id}>{t.namaGuru}</option>)}
           </select>
           <div className="flex bg-slate-200 p-1 rounded-xl shadow-inner">
              <button onClick={() => setSettings({...settings, semester: 'Ganjil'})} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold ${settings.semester === 'Ganjil' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Ganjil</button>
@@ -132,7 +138,8 @@ const TelaahModulAjar: React.FC<Props> = ({ settings, setSettings, records, inst
         <div className="mb-4 text-sm font-bold flex flex-col gap-1">
            <div className="flex"><span className="w-40">Nama Guru</span><span>: {selectedTeacher?.namaGuru || '..........'}</span></div>
            <div className="flex"><span className="w-40">Mata Pelajaran</span><span>: {selectedTeacher?.mataPelajaran || '..........'}</span></div>
-           <div className="flex"><span className="w-40">Semester</span><span>: {settings.semester}</span></div>
+           <div className="flex"><span className="w-40">Kelas / Semester</span><span>: {selectedTeacher?.kelas || '..........'} / {settings.semester}</span></div>
+           <div className="flex"><span className="w-40">Hari / Tanggal</span><span className="text-blue-800 uppercase">: {formatIndonesianDate(selectedTeacher?.tanggalAdm, true)}</span></div>
         </div>
 
         <table className="w-full border-collapse border-2 border-slate-900 text-[10px]">

@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppSettings, TeacherRecord, InstrumentResult } from '../types';
+import { FULL_SCHEDULE, SCHEDULE_TEACHERS } from '../constants';
 
 const COMPONENTS_LIST = [
   "Kalender Pendidikan", "Rencana Pekan Efektif (RPE)", "Program Tahunan", "Program Semester",
@@ -8,11 +9,13 @@ const COMPONENTS_LIST = [
   "Daftar Nilai", "KKTP", "Absensi Siswa", "Buku Pegangan Guru", "Buku Teks Siswa"
 ];
 
-const formatIndonesianDate = (dateStr?: string) => {
+const formatIndonesianDate = (dateStr?: string, withDay: boolean = false) => {
   if (!dateStr) return '..............................';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return dateStr;
-  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
+  if (withDay) options.weekday = 'long';
+  return date.toLocaleDateString('id-ID', options);
 };
 
 const getAutoFeedback = (percentage: number) => {
@@ -35,8 +38,83 @@ const AdministrasiPembelajaran: React.FC<Props> = ({ settings, setSettings, reco
   const [scores, setScores] = useState<Record<number, number>>({});
   const [catatan, setCatatan] = useState('');
   const [tindakLanjut, setTindakLanjut] = useState('');
+  
+  // Extra fields for print
+  const [sertifikasi, setSertifikasi] = useState('');
+  const [noHP, setNoHP] = useState('');
+  const [jtm, setJTM] = useState('');
+
+  // Reset selected teacher when semester changes
+  useEffect(() => {
+    setSelectedTeacherId('');
+  }, [settings.semester]);
 
   const selectedTeacher = useMemo(() => records.find(t => t.id === selectedTeacherId), [selectedTeacherId, records]);
+
+  // Determine Class logic: Current Record -> PBM Record -> Master Schedule
+  const displayKelas = useMemo(() => {
+    // 1. Try from current record
+    if (selectedTeacher?.kelas && selectedTeacher.kelas !== '-' && selectedTeacher.kelas !== '') {
+        return selectedTeacher.kelas;
+    }
+    
+    // 2. Try from other records (PBM)
+    const pbmRecord = records.find(r => 
+      r.namaGuru === selectedTeacher?.namaGuru && 
+      r.semester === settings.semester && 
+      r.kelas && r.kelas !== '-' && r.kelas !== ''
+    );
+    if (pbmRecord) return pbmRecord.kelas;
+
+    // 3. Try from Master Schedule (FULL_SCHEDULE)
+    const teacherName = selectedTeacher?.namaGuru;
+    if (teacherName) {
+        const teacherData = SCHEDULE_TEACHERS.find(t => t.nama === teacherName);
+        const teacherCode = teacherData?.kode || selectedTeacher?.kode;
+        
+        if (teacherCode) {
+            for (const day of FULL_SCHEDULE) {
+                for (const row of day.rows) {
+                    // @ts-ignore
+                    if (row.classes) {
+                        // @ts-ignore
+                        for (const [cls, code] of Object.entries(row.classes)) {
+                            if (code === teacherCode) {
+                                return cls; // Found a class!
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return '..........';
+  }, [selectedTeacher, records, settings.semester]);
+
+  // Calculate JTM automatically
+  useEffect(() => {
+    if (selectedTeacher) {
+      const teacherData = SCHEDULE_TEACHERS.find(t => t.nama === selectedTeacher.namaGuru);
+      const teacherCode = teacherData?.kode;
+      
+      if (teacherCode) {
+        let count = 0;
+        FULL_SCHEDULE.forEach(day => {
+          day.rows.forEach((row: any) => {
+            if (row.classes) {
+              Object.values(row.classes).forEach(code => {
+                if (code === teacherCode) count++;
+              });
+            }
+          });
+        });
+        setJTM(count > 0 ? count.toString() : '');
+      } else {
+        setJTM('');
+      }
+    }
+  }, [selectedTeacher]);
 
   const stats = useMemo(() => {
     const scoreValues = Object.values(scores) as number[];
@@ -62,13 +140,36 @@ const AdministrasiPembelajaran: React.FC<Props> = ({ settings, setSettings, reco
         setScores(saved.scores as any || {}); 
         if (saved.catatan) setCatatan(saved.catatan);
         if (saved.tindakLanjut) setTindakLanjut(saved.tindakLanjut);
+        
+        // Load extra fields: Use saved if available, else fallback to Teacher Record from DB
+        const savedSert = saved.remarks?.['meta_sertifikasi'];
+        setSertifikasi(savedSert !== undefined ? savedSert : (selectedTeacher?.sertifikasi || ''));
+
+        const savedHP = saved.remarks?.['meta_hp'];
+        setNoHP(savedHP !== undefined ? savedHP : (selectedTeacher?.noHP || ''));
+
+        // Prioritize calculated JTM, fall back to saved if calculation fails
+        if (!jtm && saved.remarks?.['meta_jtm']) setJTM(saved.remarks?.['meta_jtm']);
       } else {
         setScores({}); setCatatan(''); setTindakLanjut('');
+        // Init from DB
+        setSertifikasi(selectedTeacher?.sertifikasi || '');
+        setNoHP(selectedTeacher?.noHP || '');
       }
     }
-  }, [selectedTeacherId, settings.semester, instrumentResults]);
+  }, [selectedTeacherId, settings.semester, instrumentResults, selectedTeacher]);
 
   const handleScore = (idx: number, val: number) => setScores(p => ({ ...p, [idx]: val }));
+
+  const handleSave = () => {
+      if (!selectedTeacherId) return;
+      onSave(selectedTeacherId as number, 'administrasi', settings.semester, { 
+          scores, 
+          remarks: { 'meta_sertifikasi': sertifikasi, 'meta_hp': noHP, 'meta_jtm': jtm }, 
+          catatan, 
+          tindakLanjut 
+      });
+  };
 
   const exportPDF = () => {
     const element = document.getElementById('adm-pemb-export');
@@ -96,8 +197,26 @@ const AdministrasiPembelajaran: React.FC<Props> = ({ settings, setSettings, reco
         <div className="flex items-center gap-3">
           <select value={selectedTeacherId} onChange={e => setSelectedTeacherId(Number(e.target.value))} className="px-4 py-2 border rounded-xl font-black text-blue-600 text-xs uppercase tracking-tight outline-none">
             <option value="">-- PILIH GURU --</option>
-            {records.map(t => <option key={t.id} value={t.id}>{t.namaGuru}</option>)}
+            {records.filter(t => t.semester === settings.semester).map(t => <option key={t.id} value={t.id}>{t.namaGuru}</option>)}
           </select>
+          
+          <div className="grid grid-cols-3 gap-2">
+             <select 
+                value={sertifikasi} 
+                onChange={e => setSertifikasi(e.target.value)} 
+                className="px-2 py-2 border rounded text-xs w-24 outline-none font-bold"
+             >
+                <option value="">-- Sertifikasi --</option>
+                <option value="Sudah">Sudah</option>
+                <option value="Belum">Belum</option>
+             </select>
+             <input type="text" placeholder="No HP" value={noHP} onChange={e => setNoHP(e.target.value)} className="px-2 py-2 border rounded text-xs w-24" />
+             <div className="flex items-center gap-1">
+                <span className="text-[10px] font-bold">JTM:</span>
+                <input type="text" placeholder="JTM" value={jtm} readOnly className="px-2 py-2 border rounded text-xs w-16 bg-slate-100 text-slate-500" />
+             </div>
+          </div>
+
           <div className="flex bg-slate-200 p-1 rounded-xl shadow-inner">
              <button onClick={() => setSettings({...settings, semester: 'Ganjil'})} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase ${settings.semester === 'Ganjil' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Ganjil</button>
              <button onClick={() => setSettings({...settings, semester: 'Genap'})} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase ${settings.semester === 'Genap' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Genap</button>
@@ -106,7 +225,7 @@ const AdministrasiPembelajaran: React.FC<Props> = ({ settings, setSettings, reco
         <div className="flex gap-2">
           <button onClick={exportPDF} className="px-4 py-2 bg-red-600 text-white rounded-xl font-black text-[10px] uppercase shadow-lg">PDF</button>
           <button onClick={exportWord} className="px-4 py-2 bg-indigo-800 text-white rounded-xl font-black text-[10px] uppercase shadow-lg">Word</button>
-          <button onClick={() => onSave(selectedTeacherId as number, 'administrasi', settings.semester, { scores, remarks: {}, catatan, tindakLanjut })} disabled={!selectedTeacherId} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase shadow-lg">Simpan</button>
+          <button onClick={handleSave} disabled={!selectedTeacherId} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase shadow-lg">Simpan</button>
         </div>
       </div>
 
@@ -118,9 +237,18 @@ const AdministrasiPembelajaran: React.FC<Props> = ({ settings, setSettings, reco
         </div>
 
         <div className="grid grid-cols-1 gap-y-1 text-sm font-bold mb-8">
-           <div className="flex items-start"><span className="w-40 uppercase">Nama Guru</span><span className="mr-4">:</span><span className="uppercase text-blue-800">{selectedTeacher?.namaGuru || '...................'}</span></div>
-           <div className="flex items-start"><span className="w-40 uppercase">Mata Pelajaran</span><span className="mr-4">:</span><span className="italic">{selectedTeacher?.mataPelajaran || '...................'}</span></div>
-           <div className="flex items-start"><span className="w-40 uppercase">Semester</span><span className="mr-4">:</span><span className="">{settings.semester}</span></div>
+           <div className="flex items-start"><span className="w-48 uppercase">Nama Guru</span><span className="mr-4">:</span><span className="uppercase text-blue-800 font-black">{selectedTeacher?.namaGuru || '...................'}</span></div>
+           <div className="flex items-start"><span className="w-48 uppercase">Pangkat / Golongan</span><span className="mr-4">:</span><span className="">{selectedTeacher?.pangkatGolongan || '...................'}</span></div>
+           <div className="flex items-start">
+               <span className="w-48 uppercase">Mata Pelajaran</span><span className="mr-4">:</span><span className="uppercase w-64">{selectedTeacher?.mataPelajaran || '...................'}</span>
+               <span className="w-48 uppercase text-right mr-4">Jml Jam Tatap Muka :</span><span className="">{jtm || '...'} Jam</span>
+           </div>
+           <div className="flex items-start">
+               <span className="w-48 uppercase">Kelas</span><span className="mr-4">:</span><span className="uppercase w-64">{displayKelas}</span>
+           </div>
+           <div className="flex items-start"><span className="w-48 uppercase">Hari / Tanggal</span><span className="mr-4">:</span><span className="text-blue-800 uppercase">{formatIndonesianDate(selectedTeacher?.tanggalAdm, true)}</span></div>
+           <div className="flex items-start"><span className="w-48 uppercase">Sertifikasi</span><span className="mr-4">:</span><span className="">{sertifikasi || '...................'}</span></div>
+           <div className="flex items-start"><span className="w-48 uppercase">No. HP</span><span className="mr-4">:</span><span className="">{noHP || '...................'}</span></div>
         </div>
 
         <table className="w-full border-collapse border-2 border-slate-900 text-[11px]">
@@ -185,11 +313,11 @@ const AdministrasiPembelajaran: React.FC<Props> = ({ settings, setSettings, reco
           <div className="flex flex-col justify-between h-32">
              <p className="uppercase">
                 Mengetahui,<br/>
-                Kepala Sekolah
+                Pengawas Sekolah
              </p>
              <div>
-               <p className="font-black underline text-sm uppercase">{settings.namaKepalaSekolah}</p>
-               <p className="text-[10px] font-mono tracking-tighter uppercase">NIP. {settings.nipKepalaSekolah}</p>
+               <p className="font-black underline text-sm uppercase">{settings.namaPengawas}</p>
+               <p className="text-[10px] font-mono tracking-tighter uppercase">NIP. {settings.nipPengawas}</p>
              </div>
           </div>
           <div className="flex flex-col justify-between h-32">

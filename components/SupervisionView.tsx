@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { TeacherRecord, SupervisionStatus, AppSettings } from '../types';
-import { FULL_SCHEDULE, SCHEDULE_TEACHERS } from '../constants';
+import { FULL_SCHEDULE } from '../constants';
 
 interface SupervisionViewProps {
   records: TeacherRecord[];
@@ -77,14 +77,23 @@ const SupervisionView: React.FC<SupervisionViewProps> = ({ records, searchQuery,
     const end = new Date(endDate);
     let currentDate = new Date(start);
     
-    // Master list of teachers (unique by name)
-    // Fix: Explicitly type masterTeachers as TeacherRecord[] to resolve 'unknown' type errors during mapping.
-    const masterTeachers: TeacherRecord[] = Array.from(new Map<string, TeacherRecord>(records.map(r => [r.namaGuru, r])).values());
+    // Master list of teachers from dynamic records (ensuring unique by name for generation base)
+    // We use a Map to ensure we process each unique teacher once
+    const uniqueMap = new Map<string, TeacherRecord>();
+    records.forEach(r => {
+        const key = r.namaGuru.trim().toLowerCase();
+        if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, r);
+        }
+    });
+    const masterTeachers = Array.from(uniqueMap.values());
+    
+    // Keep records from OTHER semesters intact
     const otherSemesterRecords = records.filter(r => r.semester !== activeSemester);
     
     const generated: TeacherRecord[] = masterTeachers.map((teacherTemplate) => {
-      const teacherData = SCHEDULE_TEACHERS.find(t => t.nama === teacherTemplate.namaGuru);
-      const teacherInitials = teacherData?.kode || '';
+      // FIX: Use the code directly from the record in database, not from constants file
+      const teacherInitials = teacherTemplate.kode || '';
       
       let foundSlot = false;
       let safetyCounter = 0; 
@@ -100,14 +109,15 @@ const SupervisionView: React.FC<SupervisionViewProps> = ({ records, searchQuery,
           if (daySched) {
             for (const row of daySched.rows) {
               if (row.classes) {
+                // Check if the teacher code exists in this time slot
                 const teachingEntry = Object.entries(row.classes as Record<string, string>).find(([_, code]) => code === teacherInitials);
                 if (teachingEntry) {
                   const [className] = teachingEntry;
                   foundSlot = true;
                   const dateStr = currentDate.toISOString().split('T')[0];
                   
-                  // For Genap, we use a new ID if it's a clone
-                  const newId = activeSemester === 'Genap' ? (teacherTemplate.no + 2000) : teacherTemplate.id;
+                  // For Genap, ensure unique ID distinct from Ganjil
+                  const newId = activeSemester === 'Genap' ? (teacherTemplate.no + 2000) : teacherTemplate.no;
 
                   const res: TeacherRecord = { 
                     ...teacherTemplate, 
@@ -130,11 +140,17 @@ const SupervisionView: React.FC<SupervisionViewProps> = ({ records, searchQuery,
         currentDate.setDate(currentDate.getDate() + 1);
         safetyCounter++;
       }
-      return { ...teacherTemplate, id: activeSemester === 'Genap' ? (teacherTemplate.no + 2000) : teacherTemplate.id, semester: activeSemester, pewawancara: supervisorName };
+      // If no slot found, return with empty schedule but correct semester info
+      return { 
+          ...teacherTemplate, 
+          id: activeSemester === 'Genap' ? (teacherTemplate.no + 2000) : teacherTemplate.no, 
+          semester: activeSemester, 
+          pewawancara: supervisorName 
+      };
     });
 
     onUpdateRecords([...otherSemesterRecords, ...generated]);
-    alert(`Jadwal PBM semester ${activeSemester} berhasil disusun ulang secara otomatis berdasarkan Jadwal Pelajaran!`);
+    alert(`Jadwal PBM semester ${activeSemester} berhasil disusun ulang berdasarkan data Kode Guru di database!`);
   };
 
   const exportPDF = () => {

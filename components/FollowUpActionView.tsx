@@ -26,14 +26,44 @@ const addWorkDays = (startDateStr: string | undefined, days: number): string => 
   return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
-const getAutoActionRTL = (avg: number, fairThreshold: number) => {
-  if (avg < fairThreshold) return "Supervisi klinis intensif dan evaluasi harian perangkat.";
-  return "Bimbingan teknis tatap muka mengenai asesmen kurikulum merdeka.";
+// Logika Variasi RTL berdasarkan Nilai
+const getDetailedRTL = (avg: number) => {
+  if (avg < 60) return "Wajib mengikuti pelatihan intensif penyusunan perangkat ajar, simulasi mengajar (Micro Teaching), dan pendampingan penuh.";
+  if (avg < 70) return "Perlu pendampingan khusus (konsultasi) dalam pengelolaan kelas dan strategi asesmen formatif yang efektif.";
+  if (avg < 80) return "Diskusi terarah (FGD) mengenai penerapan pembelajaran berdiferensiasi dan pemanfaatan media IT yang lebih interaktif.";
+  return "Sesi tanya jawab mendalam dan observasi kelas rekan sejawat (Peer Observation) untuk pengayaan variasi metode.";
+};
+
+// Logika Centang Otomatis berdasarkan Nilai
+const getAutoChecklist = (avg: number) => {
+  const acts = { contoh: false, tanyaJawab: false, diskusi: false, konsultasi: false, pelatihan: false };
+  
+  if (avg < 60) {
+     // Nilai Sangat Kurang: Butuh Pelatihan, Contoh, dan Konsultasi
+     acts.pelatihan = true;
+     acts.contoh = true;
+     acts.konsultasi = true;
+  } else if (avg < 70) {
+     // Nilai Kurang: Butuh Contoh, Konsultasi, dan Diskusi
+     acts.contoh = true;
+     acts.konsultasi = true;
+     acts.diskusi = true;
+  } else if (avg < 80) {
+     // Nilai Cukup: Butuh Konsultasi, Diskusi, dan Tanya Jawab
+     acts.konsultasi = true;
+     acts.diskusi = true;
+     acts.tanyaJawab = true;
+  } else {
+     // Nilai Baik (tapi masuk list karena < threshold): Butuh Diskusi dan Tanya Jawab
+     acts.diskusi = true;
+     acts.tanyaJawab = true;
+  }
+  return acts;
 };
 
 const FollowUpActionView: React.FC<Props> = ({ settings, records, setSettings, instrumentResults, onSaveAction, onSave }) => {
   const activeSemester = settings.semester;
-  const targetThreshold = settings.scoreSettings.good;
+  const targetThreshold = settings.scoreSettings.good; // Menampilkan guru di bawah nilai 'Baik'
   const analysisKey = `0-action-analysis-${activeSemester}`;
 
   const [kekuatan, setKekuatan] = useState('');
@@ -76,14 +106,19 @@ const FollowUpActionView: React.FC<Props> = ({ settings, records, setSettings, i
         const avg = Math.round((sAdm + sATP + sModul + sPBM + sPenilaian) / 5);
         
         const key = `${r.id}-followup-actions-${activeSemester}`;
-        const savedActions = instrumentResults[key]?.actions || {
-          contoh: false, tanyaJawab: false, diskusi: false, konsultasi: false, pelatihan: false
-        };
+        
+        // Cek apakah sudah ada data tersimpan, jika tidak gunakan Auto Checklist
+        const savedData = instrumentResults[key]?.actions;
+        const autoActions = getAutoChecklist(avg);
+        
+        // Prioritaskan yang tersimpan jika ada, jika tidak pakai otomatis
+        const finalActions = savedData || autoActions;
 
-        const rtl = getAutoActionRTL(avg, settings.scoreSettings.fair);
-        return { ...r, avg, rtl, actions: savedActions };
+        const rtl = getDetailedRTL(avg);
+        
+        return { ...r, avg, rtl, actions: finalActions };
       })
-      .filter(r => r.avg < targetThreshold);
+      .filter(r => r.avg < targetThreshold); // Filter hanya yang nilainya kurang dari standar Baik
   }, [records, activeSemester, instrumentResults, settings.scoreSettings, targetThreshold]);
 
   const latestSupervisionDate = useMemo(() => {
@@ -99,8 +134,8 @@ const FollowUpActionView: React.FC<Props> = ({ settings, records, setSettings, i
   const generateAnalysis = () => {
     if (data.length > 0) {
        setKekuatan(`Sebagian guru (${Math.round((records.length - data.length) / records.length * 100)}%) telah mencapai ambang batas kompetensi dan tidak memerlukan tindakan perbaikan intensif.`);
-       setKelemahan(`Terdapat ${data.length} guru yang memerlukan intervensi khusus karena nilai rata-rata di bawah standar (${targetThreshold}). Fokus kelemahan pada konsistensi penyusunan dokumen dan manajemen waktu.`);
-       setRekomendasi("Segera laksanakan program 'Pemberian Contoh' dan 'Pelatihan' terfokus untuk kelompok guru ini dalam 2 minggu ke depan.");
+       setKelemahan(`Terdapat ${data.length} guru yang memerlukan intervensi khusus karena nilai rata-rata di bawah standar (${targetThreshold}). Fokus kelemahan pada konsistensi penyusunan dokumen, variasi metode mengajar, dan manajemen waktu.`);
+       setRekomendasi("Segera laksanakan program 'Pemberian Contoh' dan 'Pelatihan' terfokus untuk kelompok guru ini dalam 2 minggu ke depan, dengan melibatkan Guru Penggerak sebagai mentor.");
     } else {
        setKekuatan("Seluruh guru telah memenuhi standar minimal yang ditetapkan sekolah. Budaya mutu berjalan baik.");
        setKelemahan("Tidak ditemukan kelemahan mayor yang memerlukan tindakan perbaikan massal.");
@@ -193,7 +228,7 @@ const FollowUpActionView: React.FC<Props> = ({ settings, records, setSettings, i
               </tr>
             ))}
             {data.length === 0 && (
-              <tr><td colSpan={9} className="p-10 text-center italic text-slate-400 font-bold uppercase">Tidak ada guru dengan skor di bawah ambang batas.</td></tr>
+              <tr><td colSpan={9} className="p-10 text-center italic text-slate-400 font-bold uppercase">Tidak ada guru dengan skor di bawah ambang batas ({targetThreshold}%).</td></tr>
             )}
           </tbody>
         </table>

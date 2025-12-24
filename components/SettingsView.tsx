@@ -108,8 +108,14 @@ const TugasTambahanTU = ({ pttRecords, setPttRecords }: { pttRecords: any[], set
                   </ul>
                 </td>
                 <td className="p-3 text-right">
-                  <button onClick={() => handleEditStaff(idx)} className="text-blue-600 font-bold mr-3 hover:underline">Edit</button>
-                  <button onClick={() => handleDeleteStaff(idx)} className="text-red-600 font-bold hover:underline">Hapus</button>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => handleEditStaff(idx)} className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors shadow-sm">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </button>
+                    <button onClick={() => handleDeleteStaff(idx)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors shadow-sm">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -184,13 +190,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
 
   const handleAddTeacher = () => {
     setEditingTeacherId(null);
-    setTeacherForm({ namaGuru: '', nip: '', mataPelajaran: '', pangkatGolongan: '-', kode: '' });
+    setTeacherForm({ namaGuru: '', nip: '', mataPelajaran: '', pangkatGolongan: '-', kode: '', noHP: '', sertifikasi: 'Belum' });
     setIsTeacherModalOpen(true);
   };
 
-  const handleDeleteTeacher = (id: number) => {
-    if (confirm('Yakin ingin menghapus data guru ini? Data supervisi terkait juga akan hilang.')) {
-      setRecords(records.filter(r => r.id !== id));
+  // FIXED: Fungsi hapus yang lebih tangguh dengan konversi tipe data yang aman
+  const handleDeleteTeacher = (e: React.MouseEvent<HTMLButtonElement>, id: number) => {
+    e.preventDefault(); // Mencegah perilaku default tombol
+    e.stopPropagation(); // Mencegah event bubbling
+    
+    if (window.confirm('PERINGATAN: Apakah Anda yakin ingin MENGHAPUS guru ini secara permanen?\n\nData yang dihapus tidak dapat dikembalikan.')) {
+      // Pastikan konversi tipe data sama (Number vs Number)
+      const targetId = Number(id);
+      const updatedRecords = records.filter(r => Number(r.id) !== targetId);
+      setRecords(updatedRecords);
     }
   };
 
@@ -200,7 +213,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
     if (editingTeacherId) {
       setRecords(records.map(r => r.id === editingTeacherId ? { ...r, ...teacherForm } : r));
     } else {
-      const newId = records.length > 0 ? Math.max(...records.map(r => r.id)) + 1 : 1;
+      const maxId = records.length > 0 
+        ? Math.max(...records.map(r => Number(r.id) || 0)) 
+        : 0;
+      const newId = maxId + 1;
+
       const newRecord: TeacherRecord = {
         id: newId,
         no: newId,
@@ -209,6 +226,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
         mataPelajaran: teacherForm.mataPelajaran || '',
         pangkatGolongan: teacherForm.pangkatGolongan || '-',
         kode: teacherForm.kode || '',
+        noHP: teacherForm.noHP || '-',
+        sertifikasi: teacherForm.sertifikasi || 'Belum',
         hari: '', tanggal: '', kelas: '', jamKe: '', status: SupervisionStatus.PENDING, semester: settings.semester,
         ...teacherForm
       } as TeacherRecord;
@@ -331,6 +350,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
     return fromConst ? fromConst.nama : '';
   };
 
+  // Filter records for the Database Table to show only active semester
+  const displayedRecords = useMemo(() => {
+    return records.filter(r => r.semester === settings.semester);
+  }, [records, settings.semester]);
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[80vh] flex flex-col md:flex-row">
       {/* Sidebar Navigation for Settings */}
@@ -350,7 +374,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
             onClick={() => setActiveTab(item.id as SettingTab)}
             className={`flex items-center px-4 py-3 rounded-xl text-xs font-bold transition-all text-left ${activeTab === item.id ? 'bg-white text-blue-600 shadow-md ring-1 ring-slate-100' : 'text-slate-500 hover:bg-slate-100'}`}
           >
-            <svg className="w-4 h-4 mr-3 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon}/></svg>
+            <svg className="w-4 h-4 mr-3 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="Mitem.icon"/></svg>
             {item.label}
           </button>
         ))}
@@ -359,7 +383,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
       {/* Main Content Area */}
       <div className="flex-1 p-8 overflow-y-auto">
         
-        {/* TAB 1: IDENTITAS SEKOLAH */}
+        {/* TAB 1-3 CONTENT HIDDEN FOR BREVITY */}
         {activeTab === 'identitas' && (
           <div className="space-y-6 max-w-3xl animate-fadeIn">
             <div>
@@ -440,11 +464,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
         {/* TAB 3: KONFIGURASI JADWAL */}
         {activeTab === 'konfigurasi-jadwal' && (
           <div className="space-y-8 animate-fadeIn">
-            <div>
-              <h2 className="text-lg font-black text-slate-800 uppercase">Konfigurasi Jadwal Pelaksanaan</h2>
-              <p className="text-xs text-slate-500 mt-1">Atur rentang tanggal pelaksanaan supervisi untuk setiap kategori dan semester.</p>
-            </div>
-
             {/* Administrasi Guru */}
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                <h3 className="text-sm font-black uppercase text-blue-800 mb-4 flex items-center gap-2">
@@ -563,8 +582,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-black text-slate-800 uppercase">Database Guru</h2>
               <div className="flex gap-2">
-                <button onClick={handleSaveSettings} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold uppercase shadow-lg hover:bg-indigo-700">Simpan Perubahan</button>
                 <button onClick={handleAddTeacher} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold uppercase shadow-lg hover:bg-blue-700">+ Tambah Guru</button>
+                <button onClick={handleSaveSettings} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold uppercase shadow-lg hover:bg-indigo-700">Simpan Perubahan</button>
               </div>
             </div>
             
@@ -576,21 +595,41 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
                     <th className="p-3">Kode</th>
                     <th className="p-3">Nama Lengkap</th>
                     <th className="p-3">NIP</th>
+                    <th className="p-3">No. HP</th>
+                    <th className="p-3">Sertifikasi</th>
                     <th className="p-3">Mata Pelajaran</th>
                     <th className="p-3 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {records.map((t, i) => (
-                    <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                  {displayedRecords.map((t, i) => (
+                    <tr key={i} className="hover:bg-slate-50 transition-colors">
                       <td className="p-3 font-bold text-slate-400 text-center">{i + 1}</td>
                       <td className="p-3 font-mono text-emerald-600 font-bold">{t.kode || '-'}</td>
                       <td className="p-3 font-bold text-slate-800 uppercase">{toTitleCase(t.namaGuru)}</td>
                       <td className="p-3 font-mono text-slate-500">{t.nip}</td>
+                      <td className="p-3 font-mono text-slate-600">{t.noHP || '-'}</td>
+                      <td className="p-3 font-bold text-blue-600">{t.sertifikasi || 'Belum'}</td>
                       <td className="p-3 italic text-blue-600">{t.mataPelajaran}</td>
                       <td className="p-3 text-right">
-                        <button onClick={() => handleEditTeacher(t)} className="text-blue-600 font-bold mr-3 hover:underline">Edit</button>
-                        <button onClick={() => handleDeleteTeacher(t.id)} className="text-red-600 font-bold hover:underline">Hapus</button>
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => handleEditTeacher(t)} 
+                            className="p-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors shadow-sm" 
+                            title="Edit Data"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={(e) => handleDeleteTeacher(e, t.id)} 
+                            className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors shadow-sm"
+                            title="Hapus Permanen"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -610,6 +649,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
         {/* TAB 6: JADWAL PELAJARAN */}
         {activeTab === 'jadwal-sekolah' && (
           <div className="space-y-6 animate-fadeIn">
+            {/* Same as before... */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h2 className="text-lg font-black text-slate-800 uppercase">Jadwal Pelajaran Sekolah</h2>
@@ -705,6 +745,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
         {/* TAB 7: PREDIKAT NILAI */}
         {activeTab === 'predikat' && (
           <div className="space-y-6 max-w-xl animate-fadeIn">
+            {/* Same as before */}
             <div>
               <h2 className="text-lg font-black text-slate-800 uppercase">Konfigurasi Predikat Nilai</h2>
               <p className="text-xs text-slate-500 mt-1">Batas nilai minimum untuk setiap kategori predikat.</p>
@@ -784,6 +825,29 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
                     className="w-full border rounded-lg p-2 text-xs font-mono" 
                     placeholder="NIP..."
                   />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">No HP / WA</label>
+                  <input 
+                    type="text" 
+                    value={teacherForm.noHP || ''} 
+                    onChange={e => setTeacherForm({...teacherForm, noHP: e.target.value})} 
+                    className="w-full border rounded-lg p-2 text-xs font-bold" 
+                    placeholder="08..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Sertifikasi</label>
+                  <select 
+                    value={teacherForm.sertifikasi || 'Belum'} 
+                    onChange={e => setTeacherForm({...teacherForm, sertifikasi: e.target.value})} 
+                    className="w-full border rounded-lg p-2 text-xs font-bold"
+                  >
+                    <option value="Belum">Belum</option>
+                    <option value="Sudah">Sudah</option>
+                  </select>
                 </div>
               </div>
               <div>
