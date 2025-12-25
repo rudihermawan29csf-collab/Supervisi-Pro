@@ -204,14 +204,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
     setIsTeacherModalOpen(true);
   };
 
-  const handleDeleteTeacher = (e: React.MouseEvent<HTMLButtonElement>, id: number) => {
+  const handleDeleteTeacher = (e: React.MouseEvent<HTMLButtonElement>, teacher: TeacherRecord) => {
     e.preventDefault(); 
     e.stopPropagation(); 
     
-    if (window.confirm('PERINGATAN: Apakah Anda yakin ingin MENGHAPUS guru ini secara permanen?\n\nData yang dihapus tidak dapat dikembalikan.')) {
-      const targetId = Number(id);
-      const updatedRecords = records.filter(r => Number(r.id) !== targetId);
+    const targetName = teacher.namaGuru.trim();
+
+    if (window.confirm(`PERINGATAN: Anda akan menghapus data guru "${targetName}".\n\nTindakan ini akan MENGHAPUS SEMUA REKAM JEJAK guru tersebut dari semester Ganjil dan Genap.\n\nApakah Anda yakin?`)) {
+      // Hapus SEMUA record yang memiliki NAMA GURU yang sama (case-insensitive)
+      // Ini mengatasi masalah jika ID berbeda antara semester atau format ID tidak konsisten
+      const updatedRecords = records.filter(r => r.namaGuru.trim().toLowerCase() !== targetName.toLowerCase());
+      
       setRecords(updatedRecords);
+      // Optional: beri feedback jika data kosong (berarti sudah terhapus)
+      alert(`Data guru ${targetName} berhasil dihapus dari database.`);
     }
   };
 
@@ -504,7 +510,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
                       <td className="p-3 text-right">
                         <div className="flex justify-end gap-2">
                           <button type="button" onClick={() => handleEditTeacher(t)} className="p-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors shadow-sm"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button>
-                          <button type="button" onClick={(e) => handleDeleteTeacher(e, t.id)} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors shadow-sm"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                          <button type="button" onClick={(e) => handleDeleteTeacher(e, t)} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors shadow-sm"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                         </div>
                       </td>
                     </tr>

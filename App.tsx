@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { INITIAL_TEACHERS, DATA_PTT } from './constants';
 import { TeacherRecord, ViewType, AppSettings, SupervisionStatus, InstrumentResult, ExtraRecord, AdminRecord } from './types';
@@ -341,6 +342,7 @@ export const App: React.FC = () => {
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2"/></svg>
             </button>
+            <img src="https://i.ibb.co.com/c9Y905N/Logo-SMPN-3-PACET.png" alt="Logo" className="w-8 h-8 object-contain" />
             <h2 className="text-sm font-black text-slate-800 uppercase truncate">Manajemen Supervisi - {settings.namaSekolah || 'Memuat...'}</h2>
           </div>
           <div className="flex items-center gap-3">
