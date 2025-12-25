@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { AppSettings, DateRange, TeacherRecord, SupervisionStatus, ScoreSettings } from '../types';
 import { FULL_SCHEDULE, CLASS_LIST, SCHEDULE_TEACHERS } from '../constants';
@@ -192,6 +191,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
     return []; 
   }, [uploadedSchedules, manageScheduleYear, manageScheduleSemester]);
 
+  const displayedRecords = useMemo(() => {
+    return records.filter(r => 
+        r.semester === settings.semester && 
+        (r.tahunPelajaran ? r.tahunPelajaran === settings.tahunPelajaran : true) // Match year or show if no year (legacy)
+    );
+  }, [records, settings.semester, settings.tahunPelajaran]);
+
   const handleEditTeacher = (teacher: TeacherRecord) => {
     setEditingTeacherId(teacher.id);
     setTeacherForm(teacher);
@@ -210,13 +216,15 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
     
     const targetName = teacher.namaGuru.trim();
 
-    if (window.confirm(`PERINGATAN: Anda akan menghapus data guru "${targetName}".\n\nTindakan ini akan MENGHAPUS SEMUA REKAM JEJAK guru tersebut dari semester Ganjil dan Genap.\n\nApakah Anda yakin?`)) {
-      // Hapus SEMUA record yang memiliki NAMA GURU yang sama (case-insensitive)
-      // Ini mengatasi masalah jika ID berbeda antara semester atau format ID tidak konsisten
-      const updatedRecords = records.filter(r => r.namaGuru.trim().toLowerCase() !== targetName.toLowerCase());
+    if (window.confirm(`PERINGATAN: Anda akan menghapus data guru "${targetName}" pada Tahun Pelajaran ${settings.tahunPelajaran}.\n\nApakah Anda yakin?`)) {
+      // Hapus hanya record yang sesuai nama, semester, dan tahun pelajaran
+      const updatedRecords = records.filter(r => 
+        !(r.namaGuru.trim().toLowerCase() === targetName.toLowerCase() && 
+          r.semester === settings.semester && 
+          (r.tahunPelajaran === settings.tahunPelajaran || !r.tahunPelajaran))
+      );
       
       setRecords(updatedRecords);
-      // Optional: beri feedback jika data kosong (berarti sudah terhapus)
       alert(`Data guru ${targetName} berhasil dihapus dari database.`);
     }
   };
@@ -225,7 +233,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
     if (!teacherForm.namaGuru) return alert('Nama Guru harus diisi');
     
     if (editingTeacherId) {
-      setRecords(records.map(r => r.id === editingTeacherId ? { ...r, ...teacherForm } : r));
+      setRecords(records.map(r => r.id === editingTeacherId ? { ...r, ...teacherForm, tahunPelajaran: settings.tahunPelajaran } : r));
     } else {
       const maxId = records.length > 0 
         ? Math.max(...records.map(r => Number(r.id) || 0)) 
@@ -242,12 +250,113 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
         kode: teacherForm.kode || '',
         noHP: teacherForm.noHP || '-',
         sertifikasi: teacherForm.sertifikasi || 'Belum',
-        hari: '', tanggal: '', kelas: '', jamKe: '', status: SupervisionStatus.PENDING, semester: settings.semester,
+        hari: '', tanggal: '', kelas: '', jamKe: '', status: SupervisionStatus.PENDING, 
+        semester: settings.semester,
+        tahunPelajaran: settings.tahunPelajaran, // Bind to current academic year
         ...teacherForm
       } as TeacherRecord;
       setRecords([...records, newRecord]);
     }
     setIsTeacherModalOpen(false);
+  };
+
+  const handleTeacherTemplate = () => {
+    // @ts-ignore
+    if (typeof window.XLSX !== 'undefined') {
+        const headers = ["Nama Lengkap", "NIP", "Kode Mapel", "Mata Pelajaran", "Pangkat/Gol", "No HP", "Sertifikasi (Sudah/Belum)"];
+        const example = ["Budi Santoso, S.Pd", "19800101 200501 1 001", "MAT-BS", "Matematika", "III/c", "08123456789", "Sudah"];
+        
+        // @ts-ignore
+        const ws = window.XLSX.utils.aoa_to_sheet([headers, example]);
+        // @ts-ignore
+        const wb = window.XLSX.utils.book_new();
+        // @ts-ignore
+        window.XLSX.utils.book_append_sheet(wb, ws, "Template Guru");
+        // @ts-ignore
+        window.XLSX.writeFile(wb, "Template_Data_Guru.xlsx");
+    } else {
+        alert("Library Excel belum siap.");
+    }
+  };
+
+  const handleTeacherImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target?.result;
+      // @ts-ignore
+      const wb = window.XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      // @ts-ignore
+      const data = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
+      
+      // Skip header row
+      const rows = data.slice(1);
+      const newTeachers: TeacherRecord[] = [];
+      
+      let maxId = records.length > 0 ? Math.max(...records.map(r => r.id)) : 0;
+
+      rows.forEach((row: any[]) => {
+         if (row[0]) { // If name exists
+             maxId++;
+             newTeachers.push({
+                 id: maxId,
+                 no: maxId,
+                 namaGuru: row[0],
+                 nip: row[1] || '-',
+                 kode: row[2] || '',
+                 mataPelajaran: row[3] || '',
+                 pangkatGolongan: row[4] || '-',
+                 noHP: row[5] || '-',
+                 sertifikasi: row[6] || 'Belum',
+                 hari: '', tanggal: '', kelas: '', jamKe: '', status: SupervisionStatus.PENDING,
+                 semester: settings.semester,
+                 tahunPelajaran: settings.tahunPelajaran
+             });
+         }
+      });
+
+      if (newTeachers.length > 0) {
+          setRecords([...records, ...newTeachers]);
+          alert(`Berhasil mengimpor ${newTeachers.length} data guru untuk ${settings.tahunPelajaran} ${settings.semester}.`);
+      } else {
+          alert('Tidak ada data valid yang ditemukan dalam file.');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleExportTeachersExcel = () => {
+    // @ts-ignore
+    if (typeof window.XLSX !== 'undefined') {
+        const exportData = displayedRecords.map((r, i) => ({
+            No: i + 1,
+            Kode: r.kode,
+            Nama: r.namaGuru,
+            NIP: r.nip,
+            Mapel: r.mataPelajaran,
+            Pangkat: r.pangkatGolongan,
+            HP: r.noHP,
+            Sertifikasi: r.sertifikasi
+        }));
+        // @ts-ignore
+        const ws = window.XLSX.utils.json_to_sheet(exportData);
+        // @ts-ignore
+        const wb = window.XLSX.utils.book_new();
+        // @ts-ignore
+        window.XLSX.utils.book_append_sheet(wb, ws, "Data Guru");
+        // @ts-ignore
+        window.XLSX.writeFile(wb, `Data_Guru_${settings.tahunPelajaran.replace('/','-')}_${settings.semester}.xlsx`);
+    }
+  };
+
+  const handleExportTeachersPDF = () => {
+      const element = document.getElementById('teacher-db-table');
+      // @ts-ignore
+      html2pdf().from(element).save(`Data_Guru_${settings.tahunPelajaran.replace('/','-')}_${settings.semester}.pdf`);
   };
 
   const handleUpdateScheduleConfig = (key: keyof AppSettings, field: 'from' | 'to', value: string) => {
@@ -357,10 +466,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
     const fromConst = SCHEDULE_TEACHERS.find(t => t.kode === code);
     return fromConst ? fromConst.nama : '';
   };
-
-  const displayedRecords = useMemo(() => {
-    return records.filter(r => r.semester === settings.semester);
-  }, [records, settings.semester]);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[80vh] flex flex-col md:flex-row">
@@ -479,15 +584,26 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
         {/* TAB 4: DATABASE GURU */}
         {activeTab === 'database' && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-black text-slate-800 uppercase">Database Guru</h2>
-              <div className="flex gap-2">
-                <button onClick={handleAddTeacher} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold uppercase shadow-lg hover:bg-blue-700">+ Tambah Guru</button>
-                <button onClick={handleSaveSettings} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold uppercase shadow-lg hover:bg-indigo-700">Simpan Perubahan</button>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h2 className="text-lg font-black text-slate-800 uppercase">Database Guru</h2>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                   Tahun Pelajaran: <span className="text-blue-600">{settings.tahunPelajaran}</span> • Semester: <span className="text-blue-600">{settings.semester}</span>
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <input type="file" id="import-teachers" accept=".xlsx, .xls" className="hidden" onChange={handleTeacherImport} />
+                <label htmlFor="import-teachers" className="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase shadow-sm hover:bg-slate-200 cursor-pointer flex items-center gap-1 border border-slate-300">
+                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg> Import Excel
+                </label>
+                <button onClick={handleTeacherTemplate} className="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase shadow-sm hover:bg-slate-200 border border-slate-300">Template</button>
+                <button onClick={handleExportTeachersExcel} className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-[10px] font-bold uppercase shadow-md hover:bg-emerald-700">Excel</button>
+                <button onClick={handleExportTeachersPDF} className="px-3 py-2 bg-red-600 text-white rounded-lg text-[10px] font-bold uppercase shadow-md hover:bg-red-700">PDF</button>
+                <button onClick={handleAddTeacher} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-bold uppercase shadow-md hover:bg-blue-700">+ Baru</button>
               </div>
             </div>
             
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div id="teacher-db-table" className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-50 uppercase font-black text-slate-500">
                   <tr>
@@ -515,6 +631,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, reco
                       </td>
                     </tr>
                   ))}
+                  {displayedRecords.length === 0 && (
+                    <tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">Belum ada data guru untuk Tahun Pelajaran {settings.tahunPelajaran} ({settings.semester}). Silakan import atau tambah baru.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>

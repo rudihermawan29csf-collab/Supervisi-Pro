@@ -17,6 +17,7 @@ export interface TeacherRecord {
   status: SupervisionStatus;
   feedbackAI?: string;
   semester: 'Ganjil' | 'Genap';
+  tahunPelajaran?: string; // Added to prevent overlapping
   nip?: string;
   kode?: string; // Teacher Code (e.g., MAT-PU)
   pangkatGolongan?: string;
