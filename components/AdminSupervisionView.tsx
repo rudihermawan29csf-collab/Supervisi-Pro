@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { TeacherRecord, SupervisionStatus, AppSettings } from '../types';
 
@@ -48,6 +49,29 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
     if (!sup1) setSup1(settings.namaKepalaSekolah);
   }, [activeSemester, settings.rangeAdmGuruGanjil, settings.rangeAdmGuruGenap, settings.namaKepalaSekolah]);
 
+  // Load existing assignments from records when records change or init
+  useEffect(() => {
+    const currentRecords = records.filter(r => r.semester === activeSemester);
+    const s1: number[] = [];
+    const s2: number[] = [];
+    
+    currentRecords.forEach(r => {
+        // Simple logic: if supervisor matches sup2 input, assign to s2, else if matches sup1 or default assign to s1
+        // This is a bit loose because names can change, but helps persist state on reload if names match
+        if (r.pewawancara === sup2 && sup2 !== '') {
+            s2.push(r.id);
+        } else if (r.pewawancara === sup1) {
+            s1.push(r.id);
+        }
+    });
+    
+    // Only set if we haven't set them manually yet to avoid overwriting user interaction
+    if (assignedToSup1.length === 0 && assignedToSup2.length === 0 && (s1.length > 0 || s2.length > 0)) {
+        setAssignedToSup1(s1);
+        setAssignedToSup2(s2);
+    }
+  }, [activeSemester]); // Run once per semester change or we can add deps if needed
+
   const teacherList = useMemo(() => {
     const names = Array.from(new Set(records.map(r => r.namaGuru))).sort();
     return names;
@@ -66,9 +90,11 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
   const toggleAssignment = (teacherId: number, supervisorNum: 1 | 2) => {
     if (supervisorNum === 1) {
       setAssignedToSup1(prev => prev.includes(teacherId) ? prev.filter(id => id !== teacherId) : [...prev, teacherId]);
+      // Remove from Sup 2 if exists (though UI hides it, safer to keep logic)
       setAssignedToSup2(prev => prev.filter(id => id !== teacherId));
     } else {
       setAssignedToSup2(prev => prev.includes(teacherId) ? prev.filter(id => id !== teacherId) : [...prev, teacherId]);
+      // Remove from Sup 1
       setAssignedToSup1(prev => prev.filter(id => id !== teacherId));
     }
   };
@@ -89,11 +115,36 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
     const end = new Date(endDate);
     let currentDate = new Date(start);
     
-    // Get master list of teachers (unique by name) to handle empty semesters
+    // Get master list of teachers (unique by name) 
     const masterTeachers: TeacherRecord[] = Array.from(new Map<string, TeacherRecord>(records.map(r => [r.namaGuru, r])).values());
     const otherSemesterRecords = records.filter(r => r.semester !== activeSemester);
     
-    const updated = masterTeachers.map((tpl, index) => {
+    // FILTER: Hanya proses guru yang dicentang di Sup 1 atau Sup 2
+    // Kita harus mencari teacher berdasarkan ID yang dicentang. Karena masterTeachers mungkin punya ID berbeda (jika diambil dari semester lain),
+    // kita perlu mencocokkan Nama Guru jika ID tidak ketemu, atau pastikan ID konsisten.
+    // Asumsi: assignedToSup state berisi ID dari record yang sedang tampil di layar (activeSemester).
+    
+    // Strategy: Ambil record asli dari filteredRecords (yang ada di layar) yang dicentang
+    const recordsOnScreen = records.filter(r => r.semester === activeSemester);
+    const selectedTeachers = recordsOnScreen.filter(r => 
+        assignedToSup1.includes(r.id) || assignedToSup2.includes(r.id)
+    );
+
+    // Jika user belum pernah generate sebelumnya di semester ini (recordsOnScreen kosong/sedikit), 
+    // kita mungkin perlu pakai masterTeachers.
+    // Tapi user request: "jika guru tidak diceklist maka tidak muncul".
+    // Jadi kita hanya memproses yang ada di assignedToSup arrays.
+    
+    // Kalau assigned arrays kosong, mungkin user baru masuk. Kita tampilkan semua masterTeachers di list checkbox.
+    // Tapi saat generate, kita hanya ambil yang assigned.
+    
+    // Logic fix: The checklist iterates over `records`. If records are empty for this semester, checkboxes show nothing?
+    // We need to ensure checkboxes show ALL potential teachers (from master list) if the current list is empty.
+    
+    // Mari kita gunakan masterTeachers untuk iterasi generate, tapi filter berdasarkan apakah ID-nya (atau Namanya) terpilih.
+    // Namun, ID di assignedToSup berasal dari `records` yang dirender. 
+    
+    const updated = selectedTeachers.map((tpl, index) => {
       // Skip Sundays
       while (currentDate.getDay() === 0) currentDate.setDate(currentDate.getDate() + 1); 
       // Reset if past end date
@@ -102,28 +153,11 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
       const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
       const dayNameStr = dayNames[currentDate.getDay()];
       
-      // Determine Supervisor and Place
-      // Note: assignments map by ID, we need to map by Name if IDs change, but for now simple ID check on template
-      // Better strategy: Map assignment by Name since we are regenerating IDs
-      const teacherName = tpl.namaGuru;
-      // We need to check if the teacher was assigned in the UI. 
-      // Since UI uses filteredRecords (current semester), we need to ensure we track assignments correctly.
-      // But for bulk generation, we mostly round robin or defaults.
+      let supervisor = assignedToSup1.includes(tpl.id) ? sup1 : sup2;
+      let loc = assignedToSup1.includes(tpl.id) ? tempat1 : tempat2;
       
-      let supervisor = assignedToSup1.includes(tpl.id) ? sup1 : (assignedToSup2.includes(tpl.id) ? sup2 : sup1);
-      let loc = assignedToSup1.includes(tpl.id) ? tempat1 : (assignedToSup2.includes(tpl.id) ? tempat2 : tempat1);
-      
-      // Correct ID Logic:
-      // Ganjil IDs = tpl.no
-      // Genap IDs = tpl.no + 1000
-      // This ensures we don't overwrite Ganjil records when generating Genap, and vice versa.
-      const baseNo = tpl.no || (index + 1);
-      const newId = activeSemester === 'Genap' ? (baseNo + 1000) : baseNo;
-
       const res: TeacherRecord = { 
         ...tpl, 
-        id: newId,
-        no: baseNo,
         semester: activeSemester,
         tanggalAdm: currentDate.toISOString().split('T')[0], 
         hari: dayNameStr, 
@@ -133,13 +167,13 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
         status: SupervisionStatus.PENDING 
       };
       
-      // Increment date for next teacher (assuming 1 per day or handle logic as needed)
+      // Increment date 
       currentDate.setDate(currentDate.getDate() + 1);
       return res;
     });
     
     onUpdateRecords([...otherSemesterRecords, ...updated]);
-    alert(`Jadwal Administrasi Guru semester ${activeSemester} berhasil disusun ulang sesuai rentang tanggal!`);
+    alert(`Jadwal Administrasi Guru semester ${activeSemester} berhasil disusun! Hanya guru yang dicentang yang masuk jadwal.`);
   };
 
   const exportPDF = () => {
@@ -158,6 +192,19 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
     link.download = `Jadwal_Adm_Guru_${activeSemester}.doc`;
     link.click();
   };
+
+  // Helper untuk mendapatkan list guru yang akan ditampilkan di checkbox
+  // Jika semester ini belum ada data, ambil dari master (semua guru). Jika ada, ambil dari semester ini.
+  const checklistSource = useMemo(() => {
+      const current = records.filter(r => r.semester === activeSemester);
+      if (current.length > 0) return current;
+      // Fallback: Ambil unik dari semua semester untuk inisialisasi
+      const map = new Map();
+      records.forEach(r => {
+          if (!map.has(r.namaGuru)) map.set(r.namaGuru, { ...r, id: r.id }); // Keep ID consistent for selection
+      });
+      return Array.from(map.values());
+  }, [records, activeSemester]);
 
   return (
     <div className="animate-fadeIn space-y-6">
@@ -201,38 +248,40 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
 
         {/* Assignment Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          {/* KOLOM SUPERVISOR 1 */}
           <div className="space-y-2 bg-white p-4 rounded-xl border border-blue-100">
             <h4 className="text-[10px] font-black text-blue-600 uppercase flex justify-between">
                <span>Daftar Guru (Supervisor 1: {sup1})</span>
                <input type="text" value={tempat1} onChange={e => setTempat1(e.target.value)} className="text-right border-b border-blue-200 outline-none text-[10px] w-24 bg-transparent" />
             </h4>
-            <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
-                {records.filter(r => r.semester === activeSemester).map(teacher => (
-                  <label key={teacher.id} className="flex items-center p-1.5 hover:bg-slate-50 rounded cursor-pointer text-[10px] font-medium">
+            <div className="max-h-64 overflow-y-auto space-y-1 custom-scrollbar">
+                {/* Tampilkan guru HANYA jika BELUM dicentang di Supervisor 2 */}
+                {checklistSource.filter(teacher => !assignedToSup2.includes(teacher.id)).map(teacher => (
+                  <label key={teacher.id} className="flex items-center p-1.5 hover:bg-slate-50 rounded cursor-pointer text-[10px] font-medium transition-all animate-fadeIn">
                     <input type="checkbox" checked={assignedToSup1.includes(teacher.id)} onChange={() => toggleAssignment(teacher.id, 1)} className="mr-2 rounded text-blue-600 focus:ring-blue-500" />
                     {teacher.namaGuru}
                   </label>
                 ))}
-                {records.filter(r => r.semester === activeSemester).length === 0 && (
-                   <p className="text-[10px] text-slate-400 italic">Generate jadwal terlebih dahulu untuk memunculkan daftar.</p>
+                {checklistSource.length === 0 && (
+                   <p className="text-[10px] text-slate-400 italic">Data guru tidak ditemukan.</p>
                 )}
             </div>
           </div>
+
+          {/* KOLOM SUPERVISOR 2 */}
           <div className="space-y-2 bg-white p-4 rounded-xl border border-emerald-100">
             <h4 className="text-[10px] font-black text-emerald-600 uppercase flex justify-between">
                <span>Daftar Guru (Supervisor 2: {sup2 || '-'})</span>
                <input type="text" value={tempat2} onChange={e => setTempat2(e.target.value)} className="text-right border-b border-emerald-200 outline-none text-[10px] w-24 bg-transparent" />
             </h4>
-            <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
-                {records.filter(r => r.semester === activeSemester).map(teacher => (
-                  <label key={teacher.id} className="flex items-center p-1.5 hover:bg-slate-50 rounded cursor-pointer text-[10px] font-medium">
+            <div className="max-h-64 overflow-y-auto space-y-1 custom-scrollbar">
+                {/* Tampilkan guru HANYA jika BELUM dicentang di Supervisor 1 */}
+                {checklistSource.filter(teacher => !assignedToSup1.includes(teacher.id)).map(teacher => (
+                  <label key={teacher.id} className="flex items-center p-1.5 hover:bg-slate-50 rounded cursor-pointer text-[10px] font-medium transition-all animate-fadeIn">
                     <input type="checkbox" checked={assignedToSup2.includes(teacher.id)} onChange={() => toggleAssignment(teacher.id, 2)} className="mr-2 rounded text-emerald-600 focus:ring-emerald-500" />
                     {teacher.namaGuru}
                   </label>
                 ))}
-                {records.filter(r => r.semester === activeSemester).length === 0 && (
-                   <p className="text-[10px] text-slate-400 italic">Generate jadwal terlebih dahulu untuk memunculkan daftar.</p>
-                )}
             </div>
           </div>
         </div>
@@ -269,7 +318,7 @@ const AdminSupervisionView: React.FC<AdminSupervisionViewProps> = ({ records, on
                 <td className="px-4 py-2 border border-slate-800">{r.tempat || '-'}</td>
               </tr>
             )) : (
-              <tr><td colSpan={5} className="py-20 text-center italic text-slate-400 uppercase tracking-widest">Jadwal belum tersedia for semester ini. Atur tanggal and klik "Generate Jadwal".</td></tr>
+              <tr><td colSpan={5} className="py-20 text-center italic text-slate-400 uppercase tracking-widest">Jadwal belum tersedia. Pilih tanggal, centang guru, dan klik "Generate Jadwal".</td></tr>
             )}
           </tbody>
         </table>
