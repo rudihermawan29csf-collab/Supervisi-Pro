@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { AppSettings, TeacherRecord, InstrumentResult } from '../types';
 
@@ -44,6 +45,14 @@ const PenelaahanATP: React.FC<Props> = ({ settings, setSettings, records, instru
   }, [settings.semester]);
 
   const selectedTeacher = useMemo(() => records.find(t => t.id === selectedTeacherId), [selectedTeacherId, records]);
+
+  // Filter records based on Active Semester AND Academic Year to prevent overlapping dates
+  const filteredTeachers = useMemo(() => {
+    return records.filter(t => 
+      t.semester === settings.semester && 
+      (t.tahunPelajaran ? t.tahunPelajaran === settings.tahunPelajaran : true)
+    ).sort((a, b) => a.namaGuru.localeCompare(b.namaGuru));
+  }, [records, settings.semester, settings.tahunPelajaran]);
 
   const stats = useMemo(() => {
     const scoreValues = Object.values(scores).filter(v => typeof v === 'number') as number[];
@@ -113,8 +122,8 @@ const PenelaahanATP: React.FC<Props> = ({ settings, setSettings, records, instru
       <div className="flex flex-col md:flex-row justify-between items-center no-print bg-white p-4 rounded-2xl shadow-sm border border-slate-100 gap-4">
         <div className="flex items-center gap-3">
           <select value={selectedTeacherId} onChange={(e) => setSelectedTeacherId(Number(e.target.value))} className="px-4 py-2 border rounded-xl font-bold text-blue-600 outline-none">
-            <option value="">-- Pilih Guru --</option>
-            {records.filter(t => t.semester === settings.semester).map(t => <option key={t.id} value={t.id}>{t.namaGuru}</option>)}
+            <option value="">-- PILIH GURU ({settings.semester}) --</option>
+            {filteredTeachers.map(t => <option key={t.id} value={t.id}>{t.namaGuru}</option>)}
           </select>
           <div className="flex bg-slate-200 p-1 rounded-xl shadow-inner">
              <button onClick={() => setSettings({...settings, semester: 'Ganjil'})} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold ${settings.semester === 'Ganjil' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Ganjil</button>
